@@ -26,7 +26,7 @@ COPY package.json package-lock.json turbo.json ./
 COPY apps/worker/package.json ./apps/worker/
 COPY packages/database/package.json ./packages/database/
 
-RUN npm ci
+RUN npm ci --include=dev
 
 # 4. Copy Code
 COPY packages/ ./packages/
