@@ -37,6 +37,7 @@ COPY services/ ./services/
 RUN npx prisma generate --schema=packages/database/prisma/schema.prisma
 
 # 6. Build the Worker
+RUN npm install -g typescript turbo
 RUN npx turbo run build --filter=worker
 
 WORKDIR /app/apps/worker
