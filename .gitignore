@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+env/
+.env
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Application Specific
+uploads/
+*.mp4
+*.mp3
+*.wav
+
+# OS
+.DS_Store
+Thumbs.db
