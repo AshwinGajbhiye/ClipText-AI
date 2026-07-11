@@ -10,7 +10,6 @@ RUN apk add --no-cache openssl
 COPY package.json package-lock.json turbo.json ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/database/package.json ./packages/database/
-COPY packages/shared-types/package.json ./packages/shared-types/
 
 RUN npm ci
 
