@@ -11,9 +11,11 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
-    "db:generate": "turbo run generate --filter=@repo/database"
+    "db:generate": "turbo run generate --filter=@repo/database",
+    "db:push": "dotenv -e .env -- prisma db push --schema=packages/database/prisma/schema.prisma"
   },
   "devDependencies": {
+    "dotenv-cli": "^11.0.0",
     "turbo": "^2.0.0"
   }
 }
