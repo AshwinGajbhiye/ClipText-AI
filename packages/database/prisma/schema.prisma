@@ -1,0 +1,165 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum JobType {
+  TRANSCRIPTION
+  EXPORT
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
+  ENTERPRISE
+}
+
+model User {
+  id            String    @id @default(uuid())
+  clerkId       String    @unique // Auth mapped to Clerk
+  email         String    @unique
+  name          String?
+  
+  // Relations
+  projects      Project[]
+  subscriptions Subscription[]
+  credits       Credits?
+  payments      Payment[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime? 
+}
+
+model Project {
+  id          String    @id @default(uuid())
+  name        String
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  // A project contains videos (e.g., original and derived exports)
+  videos      Video[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime? // Soft delete to keep historical records if needed
+}
+
+model Video {
+  id              String    @id @default(uuid())
+  projectId       String
+  project         Project   @relation(fields: [projectId], references: [id])
+  
+  // Storage
+  originalFileKey String    // The R2 object key for the raw uploaded video
+  finalFileKey    String?   // The R2 object key for the final exported video
+  uploadStatus    String    @default("PENDING")
+  
+  // Metadata
+  durationSeconds Float?    
+  
+  // Jobs history (transcription, multiple exports, etc.)
+  jobs            ProcessingJob[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime? // Soft delete, useful for the cleanup cron job
+}
+
+model ProcessingJob {
+  id              String    @id @default(uuid())
+  videoId         String
+  video           Video     @relation(fields: [videoId], references: [id])
+  
+  jobType         JobType   // Distinguish between Whisper (TRANSCRIPTION) and FFmpeg (EXPORT)
+  status          JobStatus @default(PENDING)
+  progress        Int?      @default(0)
+  
+  // Data Payload
+  transcription   Json?     // Stores the generated Whisper JSON
+  exportConfig    Json?     // Stores styling templates if it's an EXPORT job
+  resultFileKey   String?   // The R2 object key where the result is saved
+  
+  // Robust logging & observability
+  processingLogs  ProcessingLog[]
+  errorMessage    String?   // Surfaced to the user if FAILED
+  startedAt       DateTime?
+  completedAt     DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model ProcessingLog {
+  id            String     @id @default(uuid())
+  jobId         String
+  job           ProcessingJob @relation(fields: [jobId], references: [id])
+  
+  level         String     // INFO, WARN, ERROR (useful for capturing Python stderr)
+  message       String
+  metadata      Json?      // Arbitrary details (e.g., FFmpeg progress, exit code, stack trace)
+  
+  createdAt     DateTime   @default(now())
+}
+
+model Subscription {
+  id                   String           @id @default(uuid())
+  userId               String
+  user                 User             @relation(fields: [userId], references: [id])
+  
+  stripeCustomerId     String?          @unique
+  stripeSubscriptionId String?          @unique
+  tier                 SubscriptionTier @default(FREE)
+  status               String           // e.g., active, past_due, canceled
+  currentPeriodEnd     DateTime?
+  
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+}
+
+model Credits {
+  id          String    @id @default(uuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id])
+  
+  // Can be minutes of processing time, or a discrete token amount
+  balance     Int       @default(0) 
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Payment {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id])
+  
+  stripePaymentId  String   @unique
+  amount           Int      // Stored in cents (standard for Stripe)
+  currency         String   @default("usd")
+  status           String   // succeeded, failed, pending
+  
+  createdAt        DateTime @default(now())
+}
+
+model WebhookEvent {
+  id              String    @id @default(uuid())
+  provider        String    // "stripe", "clerk", etc.
+  eventType       String    // e.g., "customer.subscription.created"
+  payload         Json
+  processed       Boolean   @default(false)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}

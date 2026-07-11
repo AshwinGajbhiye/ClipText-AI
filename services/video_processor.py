@@ -260,7 +260,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     with open(ass_path, "w", encoding="utf-8") as f:
         f.write(ass_header)
         
-        for segment in transcription.get("segments", []):
+        segments = transcription.get("segments", [])
+        total_segments = len(segments)
+        
+        for idx, segment in enumerate(segments):
+            if total_segments > 0:
+                progress = int((idx / total_segments) * 50) + 10 # 10% to 60% for ASS generation
+                print(f'{{"progress": {progress}}}', flush=True)
+                
             words = segment.get("words", [])
             if not words: continue
             
@@ -320,9 +327,11 @@ def export_video(input_video_path: str, output_video_path: str, transcription: d
         vf_filters.append(f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1")
 
     ass_path = input_video_path + ".ass"
+    print('{"progress": 10}', flush=True)
     print("Generating subtitles from template...")
     generate_ass_from_template(transcription, ass_path, template, text_color, glow_color, font_size, pos_x, pos_y, render_mode, target_w, target_h)
     
+    print('{"progress": 60}', flush=True)
     print("Burning subtitles to video...")
     
     # Escape ass path for Windows/Unix
@@ -350,4 +359,56 @@ def export_video(input_video_path: str, output_video_path: str, transcription: d
     if os.path.exists(ass_path):
         os.remove(ass_path)
         
+    print('{"progress": 100}', flush=True)
     return output_video_path
+
+if __name__ == "__main__":
+    import argparse
+    import json
+
+    parser = argparse.ArgumentParser(description="Video Processor")
+    parser.add_argument("--input", required=True, help="Input video file path")
+    parser.add_argument("--output", required=True, help="Output file path")
+    parser.add_argument("--mode", required=True, choices=["transcribe", "export"], help="Operation mode")
+    parser.add_argument("--config", help="Path to export configuration JSON (only for export mode)")
+    
+    args = parser.parse_args()
+
+    if args.mode == "transcribe":
+        print('{"progress": 10}', flush=True)
+        res = transcribe_only(args.input)
+        print('{"progress": 90}', flush=True)
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(res, f)
+        print('{"progress": 100}', flush=True)
+    
+    elif args.mode == "export":
+        if not args.config:
+            raise ValueError("--config is required for export mode")
+        
+        with open(args.config, "r", encoding="utf-8") as f:
+            config = json.load(f)
+            
+        transcription = config.get("transcription", {})
+        template = config.get("template", "Classic")
+        text_color = config.get("text_color", "#FFFFFF")
+        glow_color = config.get("glow_color", "#000000")
+        font_size = config.get("font_size", 90)
+        pos_x = config.get("pos_x", 50.0)
+        pos_y = config.get("pos_y", 80.0)
+        render_mode = config.get("render_mode", "word")
+        aspect_ratio = config.get("aspect_ratio", "Original")
+
+        export_video(
+            args.input, 
+            args.output, 
+            transcription, 
+            template, 
+            text_color, 
+            glow_color, 
+            font_size, 
+            pos_x, 
+            pos_y, 
+            render_mode, 
+            aspect_ratio
+        )

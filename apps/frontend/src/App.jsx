@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Download, Loader2, Play, Pause, Scissors, AlignLeft, Type, SlidersHorizontal, Plus, Move, ChevronDown, ChevronRight } from 'lucide-react';
+import { UserButton } from '@clerk/react';
 import TimelineTrack from './TimelineTrack';
 import LandingPage from './LandingPage';
 
@@ -439,6 +440,9 @@ function App() {
             {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
             {isExporting ? 'Exporting Engine...' : 'Export Final Video'}
           </button>
+          <div className="ml-2 flex items-center">
+            <UserButton />
+          </div>
         </div>
       </header>
 

@@ -1,0 +1,25 @@
+{
+  "name": "worker",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.x.x",
+    "@aws-sdk/lib-storage": "^3.x.x",
+    "@repo/database": "*",
+    "bullmq": "^5.x.x",
+    "lodash.throttle": "^4.1.1"
+  },
+  "devDependencies": {
+    "@types/lodash.throttle": "^4.1.9",
+    "@types/node": "^20.x.x",
+    "nodemon": "^3.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
