@@ -46,6 +46,11 @@ function App() {
   // Dragging state for text on preview
   const [isDraggingText, setIsDraggingText] = useState(false);
 
+  // Export Modal State
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportQuality, setExportQuality] = useState("1080p");
+  const [exportFitMode, setExportFitMode] = useState("crop");
+
   const templates = [
     "ClipText Glow", "ClipText Shadow", "Classic", "Ali Abdaal", "Hormozi Style",
     "Mr Beast Style 1", "Mr Beast Style 2", "Iman Gadzhi", "Devin Jatho", 
@@ -333,7 +338,12 @@ function App() {
     rebuildCaptions(transcription, maxWords, minDuration);
   };
 
-  const handleExport = async () => {
+  const handleExport = () => {
+    setIsExportModalOpen(true);
+  };
+
+  const startExport = async () => {
+    setIsExportModalOpen(false);
     setIsExporting(true);
     try {
       const token = await getToken();
@@ -353,7 +363,9 @@ function App() {
           pos_x: posX,
           pos_y: posY,
           render_mode: renderMode,
-          aspect_ratio: aspectRatio
+          aspect_ratio: aspectRatio,
+          quality: exportQuality,
+          fit_mode: exportFitMode
         })
       });
       if (!res.ok) throw new Error('Export failed to start');
@@ -534,13 +546,14 @@ function App() {
 
   const previewFontSize = (fontSize / 90) * 2.5 + 'rem';
   
-  // Aspect ratio class mapper
-  let aspectClass = "aspect-video"; // default fallback
+  // Calculate aspect ratio class and object-fit class
+  let aspectClass = "aspect-video"; // 16:9
   if (aspectRatio === "9:16") aspectClass = "aspect-[9/16]";
-  if (aspectRatio === "16:9") aspectClass = "aspect-video";
   if (aspectRatio === "1:1") aspectClass = "aspect-square";
   if (aspectRatio === "4:5") aspectClass = "aspect-[4/5]";
   if (aspectRatio === "Original") aspectClass = ""; // let video tag determine
+  
+  const objectFitClass = exportFitMode === "crop" ? "object-cover" : "object-contain";
 
   return (
     <div className="h-screen bg-slate-950 text-slate-200 flex flex-col overflow-hidden">
@@ -573,7 +586,7 @@ function App() {
              </a>
           )}
           <button 
-            onClick={handleExport}
+            onClick={() => setIsExportModalOpen(true)}
             disabled={isExporting}
             className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white px-6 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-lg hover:shadow-indigo-500/25"
           >
@@ -696,8 +709,6 @@ function App() {
              ref={previewContainerRef}
              className={`relative max-h-full max-w-full bg-slate-900 overflow-hidden shadow-2xl ring-1 ring-white/10 group ${aspectClass}`}
              style={{ 
-               // For Original, we don't force an aspect ratio, it naturally scales to height.
-               // We just ensure it doesn't exceed screen.
                width: aspectRatio === "Original" ? 'auto' : '100%', 
                height: aspectRatio === "Original" ? '100%' : 'auto'
              }}
@@ -705,7 +716,7 @@ function App() {
             <video 
               ref={videoRef}
               src={videoUrl} 
-              className="w-full h-full object-contain pointer-events-auto"
+              className={`w-full h-full ${objectFitClass}`}
               onClick={togglePlay}
             />
             
@@ -978,6 +989,78 @@ function App() {
          videoFileUrl={videoUrl}
       />
       
+      {/* Export Options Modal */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+           <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-md p-6 shadow-2xl flex flex-col">
+              <h2 className="text-xl font-bold text-white mb-4">Export Options</h2>
+              
+              <div className="space-y-4 mb-6 flex-1">
+                 {/* Quality */}
+                 <div>
+                   <label className="block text-sm text-slate-400 mb-1">Resolution Quality</label>
+                   <select 
+                     value={exportQuality} 
+                     onChange={(e) => setExportQuality(e.target.value)}
+                     className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-white outline-none focus:border-indigo-500"
+                   >
+                     <option value="720p">720p (Fast)</option>
+                     <option value="1080p">1080p (Standard)</option>
+                     <option value="4K">4K (High Quality)</option>
+                   </select>
+                 </div>
+
+                 {/* Aspect Ratio */}
+                 <div>
+                   <label className="block text-sm text-slate-400 mb-1">Aspect Ratio</label>
+                   <select 
+                     value={aspectRatio} 
+                     onChange={(e) => setAspectRatio(e.target.value)}
+                     className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-white outline-none focus:border-indigo-500"
+                   >
+                     <option value="Original">Original</option>
+                     <option value="9:16">9:16 (TikTok/Reels)</option>
+                     <option value="16:9">16:9 (YouTube)</option>
+                     <option value="1:1">1:1 (Square)</option>
+                     <option value="4:5">4:5 (Instagram)</option>
+                   </select>
+                 </div>
+
+                 {/* Fit Mode */}
+                 <div>
+                   <label className="block text-sm text-slate-400 mb-1">Fit Mode</label>
+                   <select 
+                     value={exportFitMode} 
+                     onChange={(e) => setExportFitMode(e.target.value)}
+                     className="w-full bg-slate-800 border border-slate-700 rounded-md px-3 py-2 text-white outline-none focus:border-indigo-500"
+                   >
+                     <option value="crop">Crop to Fill (No Black Bars)</option>
+                     <option value="fit">Fit with Padding (Black Bars)</option>
+                   </select>
+                 </div>
+                 
+                 <div className="p-3 bg-indigo-900/30 border border-indigo-500/30 rounded-md text-sm text-indigo-200">
+                    <p className="flex gap-2"><SlidersHorizontal className="w-4 h-4 shrink-0" /> Your preview in the editor has been updated to reflect these settings exactly.</p>
+                 </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 mt-4">
+                 <button 
+                   onClick={() => setIsExportModalOpen(false)}
+                   className="px-4 py-2 text-sm text-slate-300 hover:text-white"
+                 >
+                   Cancel
+                 </button>
+                 <button 
+                   onClick={startExport}
+                   className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md font-medium text-sm transition-colors flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                 >
+                   <Download className="w-4 h-4" /> Start Export
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 }

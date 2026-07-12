@@ -133,23 +133,53 @@ export default function TimelineTrack({
       const dx = e.clientX - draggingBlock.startX;
       const dTime = (dx / rect.width) * timelineDuration;
       
-      const newTranscription = { ...transcription };
-      const word = newTranscription.segments[draggingBlock.sIndex].words[draggingBlock.wIndex];
+      // Deep copy to prevent unintended state mutations
+      const newTranscription = JSON.parse(JSON.stringify(transcription));
+      const sIndex = draggingBlock.sIndex;
+      const wIndex = draggingBlock.wIndex;
+      const word = newTranscription.segments[sIndex].words[wIndex];
+
+      // Find boundaries to prevent overlaps
+      let prevWordEnd = 0;
+      if (wIndex > 0) {
+        prevWordEnd = newTranscription.segments[sIndex].words[wIndex - 1].end;
+      } else if (sIndex > 0) {
+        const prevSeg = newTranscription.segments[sIndex - 1];
+        if (prevSeg.words.length > 0) {
+            prevWordEnd = prevSeg.words[prevSeg.words.length - 1].end;
+        }
+      }
+
+      let nextWordStart = timelineDuration;
+      if (wIndex < newTranscription.segments[sIndex].words.length - 1) {
+        nextWordStart = newTranscription.segments[sIndex].words[wIndex + 1].start;
+      } else if (sIndex < newTranscription.segments.length - 1) {
+        const nextSeg = newTranscription.segments[sIndex + 1];
+        if (nextSeg.words.length > 0) {
+            nextWordStart = nextSeg.words[0].start;
+        }
+      }
 
       if (draggingBlock.type === 'move') {
         const wordDuration = draggingBlock.initialEnd - draggingBlock.initialStart;
         let newStart = draggingBlock.initialStart + dTime;
-        newStart = Math.max(0, Math.min(newStart, timelineDuration - wordDuration));
+        newStart = Math.max(prevWordEnd, Math.min(newStart, nextWordStart - wordDuration));
         word.start = newStart;
         word.end = newStart + wordDuration;
       } else if (draggingBlock.type === 'left') {
         let newStart = draggingBlock.initialStart + dTime;
-        newStart = Math.max(0, Math.min(newStart, word.end - 0.1)); // min 0.1s duration
+        newStart = Math.max(prevWordEnd, Math.min(newStart, word.end - 0.1)); // min 0.1s duration
         word.start = newStart;
       } else if (draggingBlock.type === 'right') {
         let newEnd = draggingBlock.initialEnd + dTime;
-        newEnd = Math.max(word.start + 0.1, Math.min(newEnd, timelineDuration)); // min 0.1s duration
+        newEnd = Math.max(word.start + 0.1, Math.min(newEnd, nextWordStart)); // min 0.1s duration
         word.end = newEnd;
+      }
+
+      // Sync segment boundary with its words
+      if (newTranscription.segments[sIndex].words.length > 0) {
+         newTranscription.segments[sIndex].start = newTranscription.segments[sIndex].words[0].start;
+         newTranscription.segments[sIndex].end = newTranscription.segments[sIndex].words[newTranscription.segments[sIndex].words.length - 1].end;
       }
 
       setTranscription(newTranscription);

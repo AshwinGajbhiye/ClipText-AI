@@ -305,26 +305,45 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
                     line = f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{{\\pos({abs_x:.1f},{abs_y:.1f})}}{text}\n"
                     f.write(line)
 
-def export_video(input_video_path: str, output_video_path: str, transcription: dict, template: str = "Classic", text_color="#FFFFFF", glow_color="#000000", font_size=90, pos_x=50.0, pos_y=80.0, render_mode="word", aspect_ratio="Original") -> str:
+def export_video(input_video_path: str, output_video_path: str, transcription: dict, template: str = "Classic", text_color="#FFFFFF", glow_color="#000000", font_size=90, pos_x=50.0, pos_y=80.0, render_mode="word", aspect_ratio="Original", quality="1080p", fit_mode="crop") -> str:
     """Takes the edited transcription and template, generates subtitles, and burns them into the video."""
     
-    # Determine target resolution for padding/scaling
-    target_w = 1080
-    target_h = 1920 # Default assumption
+    # Determine target resolution for padding/scaling based on quality
+    scale_factor = 1.0 # 1080p base
+    if quality == "720p":
+        scale_factor = 720 / 1080.0
+    elif quality == "4K":
+        scale_factor = 2160 / 1080.0
+        
+    target_w, target_h = None, None
+    if aspect_ratio == "9:16":
+        target_w, target_h = int(1080 * scale_factor), int(1920 * scale_factor)
+    elif aspect_ratio == "16:9":
+        target_w, target_h = int(1920 * scale_factor), int(1080 * scale_factor)
+    elif aspect_ratio == "1:1":
+        target_w, target_h = int(1080 * scale_factor), int(1080 * scale_factor)
+    elif aspect_ratio == "4:5":
+        target_w, target_h = int(1080 * scale_factor), int(1350 * scale_factor)
+
+    # Ensure even dimensions for FFmpeg
+    if target_w: target_w = target_w if target_w % 2 == 0 else target_w + 1
+    if target_h: target_h = target_h if target_h % 2 == 0 else target_h + 1
+
     vf_filters = []
     
-    if aspect_ratio == "9:16":
-        target_w, target_h = 1080, 1920
-        vf_filters.append(f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1")
-    elif aspect_ratio == "16:9":
-        target_w, target_h = 1920, 1080
-        vf_filters.append(f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1")
-    elif aspect_ratio == "1:1":
-        target_w, target_h = 1080, 1080
-        vf_filters.append(f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1")
-    elif aspect_ratio == "4:5":
-        target_w, target_h = 1080, 1350
-        vf_filters.append(f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1")
+    if target_w and target_h:
+        if fit_mode == "crop":
+            vf_filters.append(f"scale={target_w}:{target_h}:force_original_aspect_ratio=increase,crop={target_w}:{target_h}")
+        else:
+            vf_filters.append(f"scale={target_w}:{target_h}:force_original_aspect_ratio=decrease,pad={target_w}:{target_h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1")
+    
+    # Scale font size relative to a 1080p (1920 height for 9:16) baseline
+    # The default font sizes in the UI assume a 1920 height canvas
+    if target_h:
+        font_size = int(font_size * (target_h / 1920.0))
+    else:
+        # If original aspect ratio, we'd theoretically need ffprobe to get height, but for now we'll just use scale_factor
+        font_size = int(font_size * scale_factor)
 
     ass_path = input_video_path + ".ass"
     print('{"progress": 10}', flush=True)
@@ -345,6 +364,8 @@ def export_video(input_video_path: str, output_video_path: str, transcription: d
             "ffmpeg", "-i", input_video_path, 
             "-vf", vf_string, 
             "-c:v", "libx264", 
+            "-preset", "slow",
+            "-crf", "18",
             "-pix_fmt", "yuv420p", 
             "-c:a", "aac", 
             output_video_path, "-y"
@@ -398,6 +419,8 @@ if __name__ == "__main__":
         pos_y = config.get("pos_y", 80.0)
         render_mode = config.get("render_mode", "word")
         aspect_ratio = config.get("aspect_ratio", "Original")
+        quality = config.get("quality", "1080p")
+        fit_mode = config.get("fit_mode", "crop")
 
         export_video(
             args.input, 
@@ -410,5 +433,7 @@ if __name__ == "__main__":
             pos_x, 
             pos_y, 
             render_mode, 
-            aspect_ratio
+            aspect_ratio,
+            quality,
+            fit_mode
         )
