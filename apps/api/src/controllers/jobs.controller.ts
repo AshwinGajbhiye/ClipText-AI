@@ -93,7 +93,7 @@ export const getJobStatus = async (req: Request, res: Response) => {
     id: job.id,
     status: job.status,
     progress: job.progress,
-    result: job.result,
-    videoUrl: job.video.url
+    result: job.transcription,
+    videoUrl: job.video.originalFileKey ? \`/minio/\${process.env.AWS_BUCKET_NAME || 'videos'}/\${job.video.originalFileKey}\` : null
   });
 };
