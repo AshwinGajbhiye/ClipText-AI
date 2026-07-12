@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Download, Loader2, Play, Pause, Scissors, AlignLeft, Type, SlidersHorizontal, Plus, Move, ChevronDown, ChevronRight } from 'lucide-react';
-import { UserButton } from '@clerk/react';
+import { UserButton, useAuth } from '@clerk/react';
 import TimelineTrack from './TimelineTrack';
 import LandingPage from './LandingPage';
 
 function App() {
+  const { getToken } = useAuth();
   const [currentView, setCurrentView] = useState('landing');
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -93,23 +94,98 @@ function App() {
     setFile(selectedFile);
     setIsUploading(true);
 
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-    formData.append('language', language);
-
     try {
-      const res = await fetch('/api/transcribe', {
+      const token = await getToken();
+      
+      // 1. Request presigned URL
+      const reqUrlRes = await fetch('/api/upload/request-url', {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          fileName: selectedFile.name,
+          contentType: selectedFile.type
+        })
       });
-      if (!res.ok) throw new Error('Upload failed');
-      const data = await res.json();
-      setVideoId(data.video_id);
-      setVideoUrl(data.video_url);
-      rebuildCaptions(data.transcription, maxWords, minDuration);
+      if (!reqUrlRes.ok) throw new Error('Failed to get upload URL');
+      const reqUrlData = await reqUrlRes.json();
+      const { uploadUrl, key, videoId } = reqUrlData;
+      
+      // 2. Rewrite uploadUrl to use /minio proxy if it points to localhost:9000
+      let finalUploadUrl = uploadUrl;
+      if (finalUploadUrl.includes('localhost:9000')) {
+        const urlObj = new URL(finalUploadUrl);
+        finalUploadUrl = '/minio' + urlObj.pathname + urlObj.search;
+      }
+
+      // 3. Upload file to MinIO
+      const uploadRes = await fetch(finalUploadUrl, {
+        method: 'PUT',
+        body: selectedFile,
+        headers: {
+          'Content-Type': selectedFile.type
+        }
+      });
+      if (!uploadRes.ok) throw new Error('File upload failed');
+
+      // 4. Confirm upload
+      const confirmRes = await fetch('/api/upload/confirm', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          videoId,
+          language
+        })
+      });
+      if (!confirmRes.ok) throw new Error('Upload confirmation failed');
+      const confirmData = await confirmRes.json();
+      const jobId = confirmData.jobId;
+
+      // 5. Poll for job completion
+      pollJobStatus(jobId, token, videoId);
+      
     } catch (err) {
       alert("Failed to process video: " + err.message);
-    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const pollJobStatus = async (jobId, token, videoId) => {
+    try {
+      const res = await fetch(`/api/jobs/${jobId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!res.ok) throw new Error('Failed to check job status');
+      const data = await res.json();
+      
+      if (data.status === 'COMPLETED') {
+        setVideoId(videoId);
+        
+        // Rewrite videoUrl to use /minio proxy if it points to localhost:9000
+        let finalVideoUrl = data.videoUrl;
+        if (finalVideoUrl && finalVideoUrl.includes('localhost:9000')) {
+           const urlObj = new URL(finalVideoUrl);
+           finalVideoUrl = '/minio' + urlObj.pathname + urlObj.search;
+        }
+        setVideoUrl(finalVideoUrl);
+        
+        rebuildCaptions(data.result, maxWords, minDuration);
+        setIsUploading(false);
+      } else if (data.status === 'FAILED') {
+        throw new Error('Processing failed: ' + (data.error || 'Unknown error'));
+      } else {
+        // PENDING or PROCESSING, poll again in 2 seconds
+        setTimeout(() => pollJobStatus(jobId, token, videoId), 2000);
+      }
+    } catch (err) {
+      alert("Job polling failed: " + err.message);
       setIsUploading(false);
     }
   };

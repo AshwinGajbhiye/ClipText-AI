@@ -68,3 +68,32 @@ export const streamJobStatus = async (req: Request, res: Response) => {
     clearInterval(intervalId);
   });
 };
+
+export const getJobStatus = async (req: Request, res: Response) => {
+  const clerkId = req.auth?.userId;
+  if (!clerkId) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  const { jobId } = req.params;
+
+  const job = await prisma.processingJob.findUnique({
+    where: { id: jobId },
+    include: { video: { include: { project: true } } }
+  });
+
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+  
+  const user = await prisma.user.findUnique({ where: { clerkId } });
+  if (job.video.project.userId !== user?.id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  res.json({
+    id: job.id,
+    status: job.status,
+    progress: job.progress,
+    result: job.result,
+    videoUrl: job.video.url
+  });
+};
