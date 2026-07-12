@@ -11,7 +11,8 @@ COPY package.json package-lock.json turbo.json ./
 COPY apps/api/package.json ./apps/api/
 COPY packages/database/package.json ./packages/database/
 
-RUN npm ci
+
+RUN npm ci 
 
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/

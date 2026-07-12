@@ -30,11 +30,14 @@ app.get('/health', (req: Request, res: Response) => {
   res.status(200).json({ status: 'ok' });
 });
 
+import exportRoutes from './routes/export.routes';
+
 // Authenticated Routes
 // We apply Clerk middleware here, so all /api routes below require auth
 app.use('/api', ClerkExpressRequireAuth());
 app.use('/api/upload', uploadRoutes);
 app.use('/api/jobs', jobsRoutes);
+app.use('/api/export', exportRoutes);
 
 // Global Error Handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

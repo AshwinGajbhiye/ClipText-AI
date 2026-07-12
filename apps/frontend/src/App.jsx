@@ -115,22 +115,23 @@ function App() {
       });
       if (!reqUrlRes.ok) throw new Error('Failed to get upload URL');
       const reqUrlData = await reqUrlRes.json();
-      const { uploadUrl, key, videoId } = reqUrlData;
+      const { url, fields, videoId } = reqUrlData;
       
       // 2. Rewrite uploadUrl to use /minio proxy if it points to localhost:9000
-      let finalUploadUrl = uploadUrl;
+      let finalUploadUrl = url;
       if (finalUploadUrl.includes('localhost:9000')) {
         const urlObj = new URL(finalUploadUrl);
         finalUploadUrl = '/minio' + urlObj.pathname + urlObj.search;
       }
 
-      // 3. Upload file to MinIO
+      // 3. Upload file to MinIO using Presigned POST FormData
+      const formData = new FormData();
+      Object.entries(fields).forEach(([k, v]) => formData.append(k, v));
+      formData.append('file', selectedFile);
+
       const uploadRes = await fetch(finalUploadUrl, {
-        method: 'PUT',
-        body: selectedFile,
-        headers: {
-          'Content-Type': selectedFile.type
-        }
+        method: 'POST',
+        body: formData
       });
       if (!uploadRes.ok) throw new Error('File upload failed');
 
@@ -159,11 +160,13 @@ function App() {
     }
   };
 
-  const pollJobStatus = async (jobId, token, videoId) => {
+  const pollJobStatus = async (jobId, _token, videoId) => {
     try {
+      // Get a fresh token each poll since Clerk JWTs are short-lived
+      const freshToken = await getToken();
       const res = await fetch(`/api/jobs/${jobId}`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${freshToken}`
         }
       });
       if (!res.ok) throw new Error('Failed to check job status');
@@ -186,7 +189,7 @@ function App() {
         throw new Error('Processing failed: ' + (data.error || 'Unknown error'));
       } else {
         // PENDING or PROCESSING, poll again in 2 seconds
-        setTimeout(() => pollJobStatus(jobId, token, videoId), 2000);
+        setTimeout(() => pollJobStatus(jobId, _token, videoId), 2000);
       }
     } catch (err) {
       alert("Job polling failed: " + err.message);
@@ -333,9 +336,13 @@ function App() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
+      const token = await getToken();
       const res = await fetch('/api/export', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({
           video_id: videoId,
           transcription: transcription,
@@ -349,19 +356,56 @@ function App() {
           aspect_ratio: aspectRatio
         })
       });
-      if (!res.ok) throw new Error('Export failed');
+      if (!res.ok) throw new Error('Export failed to start');
       
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setExportedUrl(url);
-      
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `captioned_video.mp4`;
-      a.click();
+      const data = await res.json();
+      pollExportJobStatus(data.jobId);
     } catch (err) {
       alert("Export failed: " + err.message);
-    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const pollExportJobStatus = async (jobId) => {
+    try {
+      const freshToken = await getToken();
+      const res = await fetch(`/api/jobs/${jobId}`, {
+        headers: {
+          'Authorization': `Bearer ${freshToken}`
+        }
+      });
+      if (!res.ok) throw new Error('Failed to check export job status');
+      const data = await res.json();
+      
+      if (data.status === 'COMPLETED') {
+        let finalVideoUrl = data.videoUrl;
+        if (finalVideoUrl && finalVideoUrl.includes('localhost:9000')) {
+           const urlObj = new URL(finalVideoUrl);
+           finalVideoUrl = '/minio' + urlObj.pathname + urlObj.search;
+        } else if (finalVideoUrl && finalVideoUrl.startsWith('/minio')) {
+           // already a relative /minio path
+        }
+
+        // Fetch the video blob from the URL
+        const videoRes = await fetch(finalVideoUrl);
+        const blob = await videoRes.blob();
+        const url = URL.createObjectURL(blob);
+        setExportedUrl(url);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `captioned_video.mp4`;
+        a.click();
+        
+        setIsExporting(false);
+      } else if (data.status === 'FAILED') {
+        throw new Error('Export processing failed: ' + (data.error || 'Unknown error'));
+      } else {
+        // PENDING or PROCESSING, poll again in 2 seconds
+        setTimeout(() => pollExportJobStatus(jobId), 2000);
+      }
+    } catch (err) {
+      alert("Export job polling failed: " + err.message);
       setIsExporting(false);
     }
   };

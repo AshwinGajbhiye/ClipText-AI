@@ -89,11 +89,14 @@ export const getJobStatus = async (req: Request, res: Response) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
+  const isExport = job.jobType === 'EXPORT';
+  const fileKey = isExport ? job.resultFileKey : job.video.originalFileKey;
+
   res.json({
     id: job.id,
     status: job.status,
     progress: job.progress,
     result: job.transcription,
-    videoUrl: job.video.originalFileKey ? `/minio/${process.env.AWS_BUCKET_NAME || 'videos'}/${job.video.originalFileKey}` : null
+    videoUrl: fileKey ? `/minio/${process.env.R2_BUCKET_NAME || 'caption-bucket'}/${fileKey}` : null
   });
 };

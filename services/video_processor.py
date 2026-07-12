@@ -78,7 +78,7 @@ def transcribe_only(input_video_path: str, language: str = "auto") -> dict:
     audio_path = input_video_path + ".wav"
     try:
         subprocess.run([
-            "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg", "-i", input_video_path, "-q:a", "0", "-map", "a", audio_path, "-y"
+            "ffmpeg", "-i", input_video_path, "-q:a", "0", "-map", "a", audio_path, "-y"
         ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except subprocess.CalledProcessError as e:
         raise Exception(f"Failed to extract audio: {e}")
@@ -342,7 +342,7 @@ def export_video(input_video_path: str, output_video_path: str, transcription: d
     
     try:
         result = subprocess.run([
-            "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg", "-i", input_video_path, 
+            "ffmpeg", "-i", input_video_path, 
             "-vf", vf_string, 
             "-c:v", "libx264", 
             "-pix_fmt", "yuv420p", 
