@@ -428,43 +428,44 @@ function App() {
 
   if (!videoUrl) {
     return (
-      <div className="min-h-screen bg-slate-950 bg-gradient-to-br from-slate-900 to-indigo-950 flex flex-col items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 text-center shadow-2xl">
-          <div className="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-             <Scissors className="w-8 h-8 text-white" />
+      <>
+        {isUploading && (
+          <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm">
+            <Loader2 className="w-12 h-12 text-indigo-400 animate-spin mb-4 drop-shadow-md" />
+            <span className="text-slate-200 font-semibold tracking-wide">Transcribing audio using Whisper...</span>
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">ClipText AI</h1>
-          <p className="text-slate-400 mb-6 font-medium">Upload a video to edit captions like a pro.</p>
-          
-          <div className="mb-6 w-full text-left">
-             <label className="block text-slate-400 text-xs font-semibold mb-2 uppercase tracking-wider">Spoken Language</label>
-             <select 
-               value={language} 
-               onChange={(e) => setLanguage(e.target.value)}
-               disabled={isUploading}
-               className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none"
-             >
-               <option value="auto">Auto-detect</option>
-               <option value="en">English (Translate to English)</option>
-             </select>
-          </div>
+        )}
+        <div className={`min-h-screen bg-slate-950 bg-gradient-to-br from-slate-900 to-indigo-950 flex flex-col items-center justify-center p-4 ${isUploading ? 'pointer-events-none' : ''}`}>
+          <div className="max-w-md w-full bg-slate-900/80 backdrop-blur-xl border border-slate-700/50 rounded-2xl p-8 text-center shadow-2xl">
+            <div className="w-16 h-16 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
+               <Scissors className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold text-white mb-2 tracking-tight">ClipText AI</h1>
+            <p className="text-slate-400 mb-6 font-medium">Upload a video to edit captions like a pro.</p>
+            
+            <div className="mb-6 w-full text-left">
+               <label className="block text-slate-400 text-xs font-semibold mb-2 uppercase tracking-wider">Spoken Language</label>
+               <select 
+                 value={language} 
+                 onChange={(e) => setLanguage(e.target.value)}
+                 disabled={isUploading}
+                 className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 outline-none disabled:opacity-50"
+               >
+                 <option value="auto">Auto-detect</option>
+                 <option value="en">English (Translate to English)</option>
+               </select>
+            </div>
 
-          <label className="block w-full border-2 border-dashed border-slate-600 hover:border-indigo-400 hover:bg-indigo-500/10 transition-all rounded-xl p-12 cursor-pointer group">
-            <input type="file" className="hidden" accept="video/mp4,video/quicktime" onChange={handleUpload} disabled={isUploading} />
-            {isUploading ? (
-              <div className="flex flex-col items-center">
-                <Loader2 className="w-12 h-12 text-indigo-400 animate-spin mb-4 drop-shadow-md" />
-                <span className="text-slate-200 font-semibold tracking-wide">Transcribing audio using Whisper...</span>
-              </div>
-            ) : (
+            <label className={`block w-full border-2 border-dashed border-slate-600 hover:border-indigo-400 hover:bg-indigo-500/10 transition-all rounded-xl p-12 cursor-pointer group ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <input type="file" className="hidden" accept="video/mp4,video/quicktime" onChange={handleUpload} disabled={isUploading} />
               <div className="flex flex-col items-center">
                 <Upload className="w-12 h-12 text-slate-500 group-hover:text-indigo-400 mb-4 transition-colors" />
                 <span className="text-slate-300 font-semibold tracking-wide">Click to select video</span>
               </div>
-            )}
-          </label>
+            </label>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
