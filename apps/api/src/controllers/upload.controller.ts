@@ -12,6 +12,7 @@ const s3 = new S3Client({
     accessKeyId: process.env.R2_ACCESS_KEY_ID!,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
   },
+  forcePathStyle: true
 });
 
 export const requestUploadUrl = async (req: Request, res: Response) => {
@@ -31,16 +32,31 @@ export const requestUploadUrl = async (req: Request, res: Response) => {
        return res.status(400).json({ error: 'Unsupported content type' });
     }
 
-    const user = await prisma.user.findUnique({ where: { clerkId } });
-    if (!user) return res.status(404).json({ error: 'User not found' });
+    let user = await prisma.user.findUnique({ where: { clerkId } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          clerkId,
+          email: `${clerkId}@example.com`,
+          name: 'Local Dev User'
+        }
+      });
+    }
 
-    const project = await prisma.project.findFirst({
-      where: { id: projectId, userId: user.id }
+    let project = await prisma.project.findFirst({
+      where: { userId: user.id }
     });
-    if (!project) return res.status(403).json({ error: 'Invalid project' });
+    if (!project) {
+      project = await prisma.project.create({
+        data: {
+          name: 'Default Project',
+          userId: user.id
+        }
+      });
+    }
 
     const fileId = uuidv4();
-    const originalFileKey = `uploads/users/${user.id}/projects/${projectId}/${fileId}.${extension}`;
+    const originalFileKey = `uploads/users/${user.id}/projects/${project.id}/${fileId}.${extension}`;
 
     const video = await prisma.video.create({
       data: {

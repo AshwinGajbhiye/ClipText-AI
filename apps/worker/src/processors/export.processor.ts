@@ -3,6 +3,7 @@ import { prisma } from '@repo/database';
 import { spawn } from 'child_process';
 import { createWriteStream, promises as fs } from 'fs';
 import path from 'path';
+import os from 'os';
 import throttle from 'lodash.throttle';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
@@ -16,12 +17,13 @@ const s3 = new S3Client({
     accessKeyId: process.env.R2_ACCESS_KEY_ID!,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
   },
+  forcePathStyle: true
 });
 
 export const processExportJob = async (job: Job) => {
   const { jobId, originalFileKey, videoId, exportConfig } = job.data;
   
-  const tmpDir = '/tmp/caption-generator';
+  const tmpDir = path.join(os.tmpdir(), 'caption-generator');
   await fs.mkdir(tmpDir, { recursive: true });
   
   const ext = originalFileKey.split('.').pop();
@@ -54,7 +56,7 @@ export const processExportJob = async (job: Job) => {
 
     // 2. Spawn Python
     console.log(`Spawning Python process for export ${jobId}...`);
-    const pythonProcess = spawn('python3', [
+    const pythonProcess = spawn('python', [
       path.resolve(__dirname, '../../../../services/video_processor.py'),
       '--input', localInputPath,
       '--output', localOutputPath,
