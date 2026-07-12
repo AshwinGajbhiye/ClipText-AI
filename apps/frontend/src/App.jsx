@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Upload, Download, Loader2, Play, Pause, Scissors, AlignLeft, Type, SlidersHorizontal, Plus, Move, ChevronDown, ChevronRight } from 'lucide-react';
-import { UserButton, useAuth } from '@clerk/react';
+import { UserButton, useAuth, SignInButton } from '@clerk/react';
 import TimelineTrack from './TimelineTrack';
 import LandingPage from './LandingPage';
 
 function App() {
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
+  const fileInputRef = useRef(null);
   const [currentView, setCurrentView] = useState('landing');
   const [file, setFile] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -89,8 +90,11 @@ function App() {
   };
 
   const handleUpload = async (e) => {
-    const selectedFile = e.target.files[0];
-    if (!selectedFile) return;
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) {
+       console.warn("No file selected or upload cancelled");
+       return;
+    }
     setFile(selectedFile);
     setIsUploading(true);
 
@@ -456,13 +460,28 @@ function App() {
                </select>
             </div>
 
-            <label className={`block w-full border-2 border-dashed border-slate-600 hover:border-indigo-400 hover:bg-indigo-500/10 transition-all rounded-xl p-12 cursor-pointer group ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
-              <input type="file" className="hidden" accept="video/mp4,video/quicktime" onChange={handleUpload} disabled={isUploading} />
-              <div className="flex flex-col items-center">
-                <Upload className="w-12 h-12 text-slate-500 group-hover:text-indigo-400 mb-4 transition-colors" />
-                <span className="text-slate-300 font-semibold tracking-wide">Click to select video</span>
-              </div>
-            </label>
+            {!isSignedIn ? (
+               <SignInButton mode="modal">
+                 <button className="block w-full border-2 border-dashed border-slate-600 hover:border-indigo-400 hover:bg-indigo-500/10 transition-all rounded-xl p-12 cursor-pointer group text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900">
+                    <div className="flex flex-col items-center pointer-events-none">
+                      <Upload className="w-12 h-12 text-slate-500 group-hover:text-indigo-400 mb-4 transition-colors" />
+                      <span className="text-slate-300 font-semibold tracking-wide">Login to upload video</span>
+                    </div>
+                 </button>
+               </SignInButton>
+            ) : (
+               <button 
+                 onClick={() => fileInputRef.current?.click()}
+                 disabled={isUploading}
+                 className={`block w-full border-2 border-dashed border-slate-600 hover:border-indigo-400 hover:bg-indigo-500/10 transition-all rounded-xl p-12 cursor-pointer group text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+               >
+                 <input type="file" ref={fileInputRef} className="hidden" accept="video/mp4,video/quicktime" onChange={handleUpload} disabled={isUploading} />
+                 <div className="flex flex-col items-center pointer-events-none">
+                   <Upload className="w-12 h-12 text-slate-500 group-hover:text-indigo-400 mb-4 transition-colors" />
+                   <span className="text-slate-300 font-semibold tracking-wide">Click to select video</span>
+                 </div>
+               </button>
+            )}
           </div>
         </div>
       </>
